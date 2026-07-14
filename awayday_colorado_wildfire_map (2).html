@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Awayday Colorado — Live Wildfire Threat Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:Arial,Helvetica,sans-serif;background:#f4f8fb;color:#111;}
+  .page{max-width:1200px;margin:0 auto;padding:20px;}
+  .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+  .logo-text{display:flex;align-items:baseline;}
+  .logo-aw{font-size:34px;font-weight:800;color:#B5DCE1;letter-spacing:-1px;}
+  .logo-day{font-size:34px;font-weight:800;color:#F3CE3C;letter-spacing:-1px;}
+  .header-meta{text-align:right;}
+  .header-meta h1{font-size:17px;font-weight:700;color:#005C83;}
+  .header-meta p{font-size:11px;color:#888;margin-top:3px;}
+  .live-badge{display:inline-flex;align-items:center;gap:5px;background:#FCEBEB;border:1px solid #E24B4A;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;color:#A32D2D;margin-left:12px;}
+  .live-dot{width:7px;height:7px;border-radius:50%;background:#E24B4A;animation:pulse 1.5s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+  .alert-bar{background:#FCEBEB;border:1.5px solid #E24B4A;border-radius:8px;padding:9px 14px;font-size:12px;color:#A32D2D;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+  .alert-bar.critical{background:#8B0000;color:#fff;border-color:#5A0000;}
+  .updated-bar{background:#EAF3DE;border:1px solid #3B6D11;border-radius:8px;padding:7px 14px;font-size:11.5px;color:#2A5900;font-weight:600;margin-bottom:12px;}
+  .stat-row{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px;}
+  .stat{background:#005C83;border-radius:8px;padding:7px 12px;font-size:10.5px;color:#B5DCE1;flex:1;min-width:110px;}
+  .stat strong{display:block;font-size:13px;font-weight:700;color:#F3CE3C;margin-bottom:1px;}
+  .stat.warn{background:#7A0000;}
+  .stat.new{background:#BA7517;}
+  .main-grid{display:grid;grid-template-columns:1fr 330px;gap:12px;margin-bottom:14px;}
+  @media(max-width:850px){.main-grid{grid-template-columns:1fr;}}
+  .map-panel{border-radius:10px;overflow:hidden;border:2px solid #005C83;}
+  #live-map{height:560px;width:100%;background:#d4e8f0;}
+  .map-footer{background:#005C83;color:#B5DCE1;font-size:11px;padding:6px 12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px;}
+  .map-footer a{color:#F3CE3C;text-decoration:none;font-weight:700;}
+  #map-status{color:#F3CE3C;font-weight:600;}
+  .loc-panel{display:flex;flex-direction:column;gap:7px;}
+  .panel-title{font-size:12px;font-weight:700;color:#005C83;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px;padding-bottom:6px;border-bottom:2px solid #B5DCE1;}
+  .loc-card{border-radius:8px;padding:10px 12px;border:1.5px solid transparent;}
+  .loc-critical{background:#5A0000;border-color:#E24B4A;color:#fff;}
+  .loc-critical .loc-name{color:#F3CE3C;}
+  .loc-critical .loc-fire{color:#ffb3b3;}
+  .loc-critical .loc-note{color:#ffdddd;font-size:10.5px;line-height:1.4;}
+  .loc-critical .loc-brands{color:#F3CE3C;opacity:0.8;}
+  .loc-high{background:#FCEBEB;border-color:#E24B4A;}
+  .loc-mod{background:#FAEEDA;border-color:#BA7517;}
+  .loc-low{background:#EAF3DE;border-color:#3B6D11;}
+  .loc-name{font-size:12.5px;font-weight:700;color:#111;margin-bottom:1px;}
+  .loc-brands{font-size:10px;color:#666;margin-bottom:4px;}
+  .loc-fire{font-size:11px;font-weight:600;margin-bottom:2px;}
+  .loc-high .loc-fire{color:#A32D2D;}
+  .loc-mod .loc-fire{color:#7A4500;}
+  .loc-low .loc-fire{color:#2A5900;}
+  .loc-note{font-size:10.5px;color:#555;line-height:1.4;}
+  .badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:9px;font-weight:700;margin-right:4px;vertical-align:middle;}
+  .badge-critical{background:#5A0000;color:#F3CE3C;border:1px solid #E24B4A;}
+  .badge-high{background:#E24B4A;color:#fff;}
+  .badge-mod{background:#BA7517;color:#fff;}
+  .badge-low{background:#3B6D11;color:#fff;}
+  .brand-pill{display:inline-block;background:#005C83;border-radius:4px;padding:1px 5px;font-size:9.5px;font-weight:700;color:#F3CE3C;margin:1px 2px 1px 0;}
+  .brand-pill.dark{background:#F3CE3C;color:#003F5C;}
+  .loc-pill{display:inline-block;background:#E6F1FB;border:1px solid #B5D4F4;border-radius:4px;padding:1px 5px;font-size:9.5px;font-weight:600;color:#0C447C;margin:1px 2px 1px 0;}
+  .legend-row{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0 12px;}
+  .legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#444;font-weight:500;}
+  .lswatch{width:13px;height:13px;border-radius:50%;flex-shrink:0;}
+  h2.section{font-size:12px;font-weight:700;color:#666;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.7px;border-bottom:1px solid #ddd;padding-bottom:5px;}
+  .fire-table{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:18px;}
+  .fire-table th{background:#005C83;color:#F3CE3C;padding:8px 11px;text-align:left;font-weight:700;font-size:10.5px;}
+  .fire-table td{padding:8px 11px;border-bottom:1px solid #e8e8e8;vertical-align:top;line-height:1.5;}
+  .fire-table tr:nth-child(even) td{background:#f9fbfd;}
+  .fire-table tr:hover td{background:#EAF4F8;}
+  .fire-table tr.new-fire td{background:#FFF8E1;}
+  .fire-table tr.new-fire:hover td{background:#FFF0C0;}
+  .cbar{height:7px;border-radius:4px;background:#e0e0e0;overflow:hidden;min-width:60px;margin-bottom:3px;}
+  .cfill{height:100%;border-radius:4px;}
+  .c-crit{background:#5A0000;} .c-low{background:#E24B4A;} .c-mid{background:#BA7517;} .c-high{background:#3B6D11;}
+  .chg-up{color:#3B6D11;font-size:10px;font-weight:700;}
+  .chg-dn{color:#A32D2D;font-size:10px;font-weight:700;}
+  .new-badge{display:inline-block;background:#BA7517;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px;vertical-align:middle;}
+  .emerg-badge{display:inline-block;background:#5A0000;color:#F3CE3C;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px;vertical-align:middle;border:1px solid #E24B4A;}
+  .info-box{background:#E6F1FB;border-radius:8px;padding:12px 14px;font-size:11.5px;color:#0C447C;margin-bottom:18px;line-height:1.8;}
+  .info-box a{color:#005C83;font-weight:700;}
+  .footer{font-size:11px;color:#aaa;border-top:1px solid #e0e0e0;padding-top:10px;margin-top:4px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;}
+  .footer a{color:#005C83;text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div style="display:flex;align-items:center;">
+      <div class="logo-text"><span class="logo-aw">away</span><span class="logo-day">day</span></div>
+      <div class="live-badge"><div class="live-dot"></div>LIVE FIRE DATA</div>
+    </div>
+    <div class="header-meta">
+      <h1>Colorado Wildfire Threat Report</h1>
+      <p>Live hotspot data via NASA FIRMS &nbsp;&middot;&nbsp; Updated July 13, 2026 &nbsp;&middot;&nbsp; Sources: Colorado Sun, CPR News, Denver7, Steamboat Pilot, InciWeb</p>
+    </div>
+  </div>
+
+  <div class="alert-bar critical">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F3CE3C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    &#9888; CRITICAL UPDATE &mdash; Two new fires ignited July 12 near Steamboat Springs. Fishhook Fire (~1 mi from Steamboat Resort) &amp; Green Ridge Fire (disaster emergency declared). Steamboat Springs locations NOW ELEVATED TO HIGH RISK.
+  </div>
+
+  <div class="updated-bar">
+    &#10003; Updated July 13, 2026 &mdash; 2 NEW fires near Steamboat Springs &middot; Aspen Acres 98,100 ac / 25% &middot; Gold Mountain grew to 35,601 ac / 5% &middot; Ferris grew to 64,369 ac / 23% &middot; Willow improved to 5,853 ac / 33% &middot; Steamboat threat level UPGRADED to HIGH RISK
+  </div>
+
+  <div class="stat-row">
+    <div class="stat warn"><strong>98,100 ac &middot; 25%</strong>Aspen Acres <span class="chg-up">&#9650; cont. improving</span></div>
+    <div class="stat warn"><strong>64,369 ac &middot; 23%</strong>Ferris <span class="chg-dn">&#9650; grew</span></div>
+    <div class="stat warn"><strong>35,601 ac &middot; 5%</strong>Gold Mtn <span class="chg-dn">&#9660; cont. dropped</span></div>
+    <div class="stat warn"><strong>5,853 ac &middot; 33%</strong>Willow <span class="chg-up">&#9650; improving</span></div>
+    <div class="stat new"><strong>94 ac &middot; 0%</strong>Fishhook <span class="new-badge">NEW</span> <span class="emerg-badge">EMERGENCY</span></div>
+    <div class="stat new"><strong>44 ac &middot; 27%</strong>Green Ridge <span class="new-badge">NEW</span> <span class="emerg-badge">EMERGENCY</span></div>
+    <div class="stat"><strong>30,202 ac &middot; 98%</strong>Snyder (contained)</div>
+  </div>
+
+  <div class="main-grid">
+    <div>
+      <div class="map-panel">
+        <div id="live-map"><div style="padding:60px;text-align:center;color:#555;font-size:13px;">Loading map&hellip;</div></div>
+        <div class="map-footer">
+          <span>Live satellite hotspots via <a href="https://firms.modaps.eosdis.nasa.gov" target="_blank">NASA FIRMS</a> &nbsp;&middot;&nbsp; VIIRS sensor &nbsp;&middot;&nbsp; <span id="map-status">Initialising&hellip;</span></span>
+          <span style="font-size:10px;">&#128309; Awayday &nbsp; &#128308; Active hotspot &nbsp; &#128992; 24hr hotspot</span>
+        </div>
+      </div>
+      <div class="legend-row">
+        <div class="legend-item"><div class="lswatch" style="background:#005C83;border:2.5px solid #F3CE3C;"></div>Awayday location</div>
+        <div class="legend-item"><div class="lswatch" style="background:#5A0000;border:2px solid #E24B4A;"></div>Awayday HIGH RISK</div>
+        <div class="legend-item"><div class="lswatch" style="background:#E24B4A;border:1px solid #8B0000;"></div>NASA satellite hotspot</div>
+        <div class="legend-item"><div class="lswatch" style="background:#F9972B;border:1px solid #7A4500;"></div>24-hr hotspot</div>
+        <div class="legend-item"><div style="width:13px;height:13px;border-radius:2px;background:rgba(226,75,74,0.18);border:2px dashed #E24B4A;flex-shrink:0;"></div>Approx. fire perimeter</div>
+      </div>
+    </div>
+
+    <div class="loc-panel">
+      <div class="panel-title">Awayday Threat Status &mdash; July 13</div>
+
+      <div class="loc-card loc-critical">
+        <div class="loc-name"><span class="badge badge-critical">&#9888; CRITICAL</span>Steamboat Springs</div>
+        <div class="loc-brands"><span class="brand-pill dark">RET</span><span class="brand-pill dark">SBLC</span></div>
+        <div class="loc-fire">Fishhook Fire — ~1 mi from Steamboat Resort &middot; 0% contained</div>
+        <div class="loc-note">UPGRADED from Low Risk. Two new fires ignited July 12. Fishhook Fire is ~1 mile SE of Steamboat ski area. Green Ridge Fire near Stagecoach Reservoir is threatening 480 structures. Disaster emergency declared by Governor Polis. Resort closed upper mountain Sunday. Evacuations in place. Immediate threat.</div>
+      </div>
+
+      <div class="loc-card loc-high">
+        <div class="loc-name"><span class="badge badge-high">HIGH RISK</span>Telluride</div>
+        <div class="loc-brands"><span class="brand-pill">LIT</span></div>
+        <div class="loc-fire">Gold Mountain Fire — ~30 mi NE &middot; 5% contained</div>
+        <div class="loc-note">Containment DROPPED from 8% to 5% as fire grew to 35,601 acres. Fire has regained momentum. ~1,000 personnel on scene. Disaster emergency in place. Mandatory evacs remain north and west of Ouray.</div>
+      </div>
+
+      <div class="loc-card loc-mod">
+        <div class="loc-name"><span class="badge badge-mod">MONITOR</span>Breckenridge</div>
+        <div class="loc-brands"><span class="brand-pill">GWL</span><span class="brand-pill">SCR</span></div>
+        <div class="loc-fire">Willow Fire — ~25 mi south &middot; 33% contained</div>
+        <div class="loc-note">Significant improvement. Willow Fire now 33% contained and grew only to 5,853 acres. Risk reducing but still monitor. 760+ personnel. No structures lost.</div>
+      </div>
+
+      <div class="loc-card loc-mod">
+        <div class="loc-name"><span class="badge badge-mod">MONITOR</span>Keystone &amp; Summit Cove</div>
+        <div class="loc-brands"><span class="brand-pill">SCMR</span><span class="brand-pill">SUM</span></div>
+        <div class="loc-fire">Willow Fire — ~25 mi south &middot; 33% contained</div>
+        <div class="loc-note">Improving situation vs. last update. Summit County still under air quality advisory. Monitor ongoing wind conditions.</div>
+      </div>
+
+      <div class="loc-card loc-mod">
+        <div class="loc-name"><span class="badge badge-mod">MONITOR</span>Winter Park &middot; Grand Lake &middot; Lake Granby</div>
+        <div class="loc-brands"><span class="brand-pill">SWP</span><span class="brand-pill">WBLC</span></div>
+        <div class="loc-fire">Willow Fire — ~35-40 mi south &middot; 33% contained</div>
+        <div class="loc-note">Improving Willow Fire situation reduces direct risk. Regional smoke and air quality advisory continues. Monitor conditions.</div>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="section">Active Fire Details &mdash; Awayday Impact Assessment (Updated July 13, 2026)</h2>
+  <table class="fire-table">
+    <thead>
+      <tr><th>Fire</th><th>Location</th><th>Size &amp; Containment</th><th>Awayday Locations Affected</th><th>Latest Outlook</th><th>Current Evacuations</th></tr>
+    </thead>
+    <tbody>
+      <tr class="new-fire">
+        <td><strong>Fishhook</strong> <span class="new-badge">NEW</span><br><span style="font-size:10px;color:#5A0000;font-weight:700;">&#9888; CRITICAL &middot; 0%</span></td>
+        <td>Routt County<br><span style="color:#666;font-size:10px;">Rabbit Ears Pass, Routt NF &mdash; ~1 mi SE of Steamboat Resort, 1.5 mi N of Hwy 40</span></td>
+        <td><div class="cbar"><div class="cfill c-crit" style="width:2%"></div></div><strong>94 ac</strong> &middot; 0%<br><span style="font-size:10px;color:#555;">Started July 12 &middot; Cause under investigation</span></td>
+        <td>
+          <span class="badge badge-critical">&#9888; CRITICAL</span><span class="loc-pill">Steamboat Springs</span><span class="brand-pill">RET</span><span class="brand-pill">SBLC</span><br>
+          <span style="font-size:10px;color:#666;">Approximately 1 mile SE of Steamboat ski resort. 0% contained. Heavy aerial response with 4 Type 1 helicopters. Ground resources establishing anchor points. Smoke visible from resort.</span><br><br>
+          <span class="badge badge-low">CLEAR</span><span style="font-size:10px;color:#666;">All other Awayday locations unaffected by this fire.</span>
+        </td>
+        <td style="font-size:11px;">4 Type 1 helicopters working fire. Ground crews attempting to establish anchor point. Difficult terrain limiting access. More mapping flights Monday to define perimeter. Fire burning on Routt National Forest land. Critical fire weather — hot, dry conditions continue. Steamboat Resort closed upper mountain Sunday, resuming with limited access Monday.</td>
+        <td style="font-size:11px;">No formal evacuation orders yet for Fishhook Fire specifically. Smoke affecting Routt County air quality. Monitor Routt County alerts closely.</td>
+      </tr>
+      <tr class="new-fire">
+        <td><strong>Green Ridge</strong> <span class="new-badge">NEW</span><br><span style="font-size:10px;color:#A32D2D;font-weight:700;">&#9888; HIGH &middot; 27%</span></td>
+        <td>Routt County<br><span style="color:#666;font-size:10px;">South of Stagecoach Reservoir, ~15 mi S of Steamboat Springs</span></td>
+        <td><div class="cbar"><div class="cfill c-low" style="width:27%"></div></div><strong>44 ac</strong> &middot; 27%<br><span style="font-size:10px;color:#555;">Started July 12 &middot; Private land &middot; Cause under investigation</span></td>
+        <td>
+          <span class="badge badge-high">HIGH</span><span class="loc-pill">Steamboat Springs</span><span class="brand-pill">RET</span><span class="brand-pill">SBLC</span><br>
+          <span style="font-size:10px;color:#666;">~15 mi south of Steamboat Springs. Threatens 480 structures within 3-mile radius. Disaster emergency declared by Governor Polis. Most of fire "knocked out" per officials Monday, large portion being contained overnight.</span><br><br>
+          <span class="badge badge-low">CLEAR</span><span style="font-size:10px;color:#666;">All other Awayday locations unaffected by this fire.</span>
+        </td>
+        <td style="font-size:11px;">Growing rapidly on private land but gaining containment. Fire was "knocked out" extensively Monday night per officials. 27% contained as of Monday afternoon. Governor declared disaster emergency. National Guard authorized to assist. Burning near Stagecoach Reservoir — starting to gain control.</td>
+        <td style="font-size:11px;"><strong>Previous mandatory:</strong> OC-522, OC-523, OC-528, OC-536<br><strong>Current:</strong> OC-522 &amp; OC-523 pulled back to pre-evac as of Sunday 6:30pm. 20 homes still under mandatory evac order. Routt County alerts active.</td>
+      </tr>
+      <tr>
+        <td><strong>Gold Mountain</strong><br><span style="font-size:10px;color:#A32D2D;font-weight:700;">&#9888; CRITICAL &middot; 5%</span></td>
+        <td>Ouray County<br><span style="color:#666;font-size:10px;">2 mi NE of Ouray</span></td>
+        <td><div class="cbar"><div class="cfill c-low" style="width:5%"></div></div><strong>35,601 ac</strong> &middot; 5% <span class="chg-dn">&#9660; was 8%, grew 4,000 ac</span><br><span style="font-size:10px;color:#555;">~1,000 personnel &middot; Started June 27</span></td>
+        <td><span class="badge badge-high">HIGH</span><span class="loc-pill">Telluride</span><span class="brand-pill">LIT</span><br><span style="font-size:10px;color:#666;">~30 mi. Containment dropped back to 5% as fire regrew. Disaster emergency in place.</span><br><br><span class="badge badge-low">CLEAR</span><span style="font-size:10px;color:#666;">All other locations 80+ mi away.</span></td>
+        <td style="font-size:11px;">Fire regained momentum after briefly improving. Containment dropped from 8% to 5% as fire grew to 35,601 acres. ~1,000 firefighters working to reinforce southwestern perimeter to prevent fire from moving into Ouray. Disaster emergency remains in place.</td>
+        <td style="font-size:11px;"><strong>Mandatory:</strong> Lake Lenore and areas N &amp; W of fire, bordered W by US-550, N by Cutler Creek<br><strong>Voluntary:</strong> Black Lake, Whispering Pines</td>
+      </tr>
+      <tr>
+        <td><strong>Ferris</strong><br><span style="font-size:10px;color:#A32D2D;font-weight:700;">GROWING &middot; 23%</span></td>
+        <td>San Juan NF<br><span style="color:#666;font-size:10px;">Montezuma &amp; Dolores counties, N of Cortez</span></td>
+        <td><div class="cbar"><div class="cfill c-mid" style="width:23%"></div></div><strong>64,369 ac</strong> &middot; 23% <span class="chg-dn">&#9650; grew from 57,356 ac</span><br><span style="font-size:10px;color:#555;">Started June 27 &middot; Lightning</span></td>
+        <td><span class="badge badge-mod">MONITOR</span><span class="loc-pill">Telluride</span><span class="brand-pill">LIT</span><br><span style="font-size:10px;color:#666;">~50 mi NW. Secondary threat alongside Gold Mountain.</span><br><br><span class="badge badge-low">CLEAR</span><span style="font-size:10px;color:#666;">All other locations 100+ mi away.</span></td>
+        <td style="font-size:11px;">Continues to grow in San Juan National Forest. Ranks among the largest fires burning in the US right now. San Juan National Forest road and trail closures in effect. Containment mostly on southern and eastern edges. No private lands or Benchmark Lookout Tower reached.</td>
+        <td style="font-size:11px;"><strong>Mandatory:</strong> Bradfield Bridge, Glade Ranch, lower Dolores River, Dolores Co. Road H.6 to Road P<br><strong>Level 1:</strong> East of Lone Mesa State Park</td>
+      </tr>
+      <tr>
+        <td><strong>Aspen Acres</strong><br><span style="font-size:10px;color:#BA7517;font-weight:700;">LARGEST &middot; 25%</span></td>
+        <td>Custer &amp; Pueblo counties<br><span style="color:#666;font-size:10px;">10 mi NW of Rye, Wet Mountains</span></td>
+        <td><div class="cbar"><div class="cfill c-mid" style="width:25%"></div></div><strong>98,100 ac</strong> &middot; 25% <span class="chg-up">&#9650; cont. doubled</span><br><span style="font-size:10px;color:#555;">1,900+ personnel &middot; 775 structures destroyed</span></td>
+        <td><span class="badge badge-low">CLEAR</span><strong>No Awayday locations directly threatened</strong><br><span style="font-size:10px;color:#666;">Containment doubled to 25%. 775 structures destroyed — significantly more than earlier reports. Well south/east of all Awayday locations. Largest fire in Colorado, ranks among largest burning nationally. Regional smoke advisory affects Summit, Eagle, Ouray, San Juan counties.</span></td>
+        <td style="font-size:11px;">Significant progress — containment doubled to 25% with 1,900+ personnel. 775 structures destroyed across Pueblo and Custer counties. More Pueblo County residents returning home. Still classified as a monster fire but crews gaining ground. Alaska Complex IMT in command.</td>
+        <td style="font-size:11px;"><strong>Mandatory:</strong> Colorado City, Beulah, Rye, San Isabel, Wetmore, Red Creek, Apache City<br>Re-entry permits being issued for Rockvale, Coal Creek, Williamsburg and parts of Pueblo Co.</td>
+      </tr>
+      <tr>
+        <td><strong>Willow</strong><br><span style="font-size:10px;color:#3B6D11;font-weight:700;">IMPROVING &middot; 33%</span></td>
+        <td>Lake County<br><span style="color:#666;font-size:10px;">2 mi NW of Leadville Fish Hatchery</span></td>
+        <td><div class="cbar"><div class="cfill c-mid" style="width:33%"></div></div><strong>5,853 ac</strong> &middot; 33% <span class="chg-up">&#9650; was 10%</span><br><span style="font-size:10px;color:#555;">760+ personnel &middot; No structures lost</span></td>
+        <td>
+          <span class="badge badge-mod">MONITOR</span><span class="loc-pill">Breckenridge</span><span class="brand-pill">GWL</span><span class="brand-pill">SCR</span> <span class="loc-pill">Keystone</span><span class="brand-pill">SCMR</span> <span class="loc-pill">Summit Cove</span><span class="brand-pill">SUM</span><br><span style="font-size:10px;color:#666;">~25 mi. Significant improvement — risk reducing but still monitor. Hot dry conditions continue this week.</span><br><br>
+          <span class="badge badge-mod">MONITOR</span><span class="loc-pill">Winter Park</span><span class="brand-pill">SWP</span><span class="brand-pill">WBLC</span> <span class="loc-pill">Grand Lake</span><span class="brand-pill">SWP</span> <span class="loc-pill">Lake Granby</span><span class="brand-pill">SWP</span><br><span style="font-size:10px;color:#666;">~35-40 mi. Lower risk. Monitor ongoing conditions.</span><br><br>
+          <span class="badge badge-low">CLEAR</span><span class="loc-pill">Steamboat Springs</span><span class="brand-pill">RET</span><span class="brand-pill">SBLC</span><span style="font-size:10px;color:#666;"> (now affected by Fishhook/Green Ridge instead)</span>
+        </td>
+        <td style="font-size:11px;">Significant improvement. Containment jumped from 10% to 33% by July 12 with 760+ personnel. Only modest growth to 5,853 acres. No structures lost, no injuries. Structures at Lake Fork Ranch spared. Proactive firing operations and aerial support effective. Hot/dry conditions continue this week — maintain vigilance.</td>
+        <td style="font-size:11px;"><strong>Some evacuees returning:</strong> Zone 6B re-entry with Salamander card<br><strong>Pre-evac still active:</strong> Twin Lakes, Pan-Ark, parts of Hwy 24<br>Shelter: Darren Patterson Christian Academy, Buena Vista</td>
+      </tr>
+      <tr>
+        <td><strong>Snyder</strong><br><span style="font-size:10px;color:#3B6D11;font-weight:700;">98% CONTAINED</span></td>
+        <td>Mesa County<br><span style="color:#666;font-size:10px;">SW of Fruita, CO/UT border</span></td>
+        <td><div class="cbar"><div class="cfill c-high" style="width:98%"></div></div><strong>30,202 ac</strong> &middot; 98%<br><span style="font-size:10px;color:#555;">All evacs lifted</span></td>
+        <td><span class="badge badge-low">CLEAR</span><strong>No Awayday locations threatened</strong><br><span style="font-size:10px;color:#666;">All evacuations lifted. Near fully contained.</span></td>
+        <td style="font-size:11px;">Largely under control. Memorial held for 3 killed firefighters. Crews mopping up.</td>
+        <td style="font-size:11px;">All mandatory evacuations and pre-evacuations <strong>lifted</strong>.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="info-box">
+    <strong>&#9888; Key development July 13:</strong> Steamboat Springs (RET, SBLC) has been upgraded from LOW RISK to CRITICAL following two new fires igniting July 12 in Routt County. The Fishhook Fire is approximately 1 mile from Steamboat ski resort. Governor Polis has declared a disaster emergency for the Green Ridge Fire. Monitor <a href="https://experience.arcgis.com/experience/a11324952f3141e3bd532874ae47a602" target="_blank">Routt County evacuation map</a> and <a href="https://www.steamboatpilot.com" target="_blank">Steamboat Pilot &amp; Today</a> for real-time updates.<br><br>
+    <strong>About the live map:</strong> Red/orange dots are NASA FIRMS VIIRS satellite hotspots updated every 3 hours. Blue pins are Awayday locations (dark red = critical risk). Click any pin for threat details. Fire perimeter circles are approximate based on reported acreage.<br><br>
+    Official evacuations: <a href="https://dfpc.colorado.gov" target="_blank">dfpc.colorado.gov</a> &nbsp;&middot;&nbsp; <a href="https://inciweb.wildfire.gov" target="_blank">InciWeb</a> &nbsp;&middot;&nbsp; <a href="https://www.cpr.org/2026-wildfires/" target="_blank">CPR News</a> &nbsp;&middot;&nbsp; <a href="https://coloradosun.com/colorado-wildfires-tracker-map/" target="_blank">Colorado Sun tracker</a> &nbsp;&middot;&nbsp; <a href="https://www.steamboatpilot.com" target="_blank">Steamboat Pilot</a>
+  </div>
+
+  <div class="footer">
+    <span>Awayday Internal Use &middot; Colorado Wildfire Situation Report &middot; Updated July 13, 2026</span>
+    <span>Sources: <a href="https://coloradosun.com/colorado-wildfires-tracker-map/" target="_blank">Colorado Sun</a> &middot; <a href="https://www.cpr.org/2026-wildfires/" target="_blank">CPR News</a> &middot; <a href="https://www.denver7.com" target="_blank">Denver7</a> &middot; <a href="https://www.steamboatpilot.com" target="_blank">Steamboat Pilot</a> &middot; <a href="https://firms.modaps.eosdis.nasa.gov" target="_blank">NASA FIRMS</a></span>
+  </div>
+
+</div>
+
+<script>
+var awadayLocations = [
+  {name:'Steamboat Springs', brands:['RET','SBLC'], lat:40.4850, lng:-106.8317, threat:'critical', fire:'Fishhook Fire ~1 mi from resort | 0% contained | Disaster emergency declared | Green Ridge Fire ~15 mi south | Mandatory evacuations in place'},
+  {name:'Telluride', brands:['LIT'], lat:37.9375, lng:-107.8123, threat:'high', fire:'Gold Mountain Fire ~30 mi NE | 5% contained (dropped from 8%) | Grew to 35,601 acres | Disaster emergency declared'},
+  {name:'Breckenridge', brands:['GWL','SCR'], lat:39.4817, lng:-106.0384, threat:'mod', fire:'Willow Fire ~25 mi south | 33% contained | Significantly improving'},
+  {name:'Keystone', brands:['SCMR'], lat:39.5792, lng:-105.9347, threat:'mod', fire:'Willow Fire ~25 mi south | 33% contained | Summit Co. air quality advisory'},
+  {name:'Summit Cove', brands:['SUM'], lat:39.5915, lng:-106.0082, threat:'mod', fire:'Willow Fire ~25 mi south | 33% contained | Monitor conditions'},
+  {name:'Winter Park', brands:['SWP','WBLC'], lat:39.8917, lng:-105.7631, threat:'mod', fire:'Willow Fire ~38 mi south | 33% contained | Improving situation'},
+  {name:'Grand Lake', brands:['SWP'], lat:40.2522, lng:-105.8228, threat:'mod', fire:'Willow Fire ~40 mi south | Improving | Monitor conditions'},
+  {name:'Lake Granby', brands:['SWP'], lat:40.1547, lng:-105.8472, threat:'mod', fire:'Willow Fire ~38 mi south | Improving | Monitor conditions'},
+];
+
+var knownFires = [
+  {name:'Fishhook Fire', lat:40.43, lng:-106.78, acres:94, contained:0, note:'0% contained. ~1 mi SE of Steamboat Resort. 4 Type 1 helicopters. Critical threat.'},
+  {name:'Green Ridge Fire', lat:40.28, lng:-106.87, acres:44, contained:27, note:'27% contained. Near Stagecoach Reservoir. Disaster emergency. 480 structures at risk.'},
+  {name:'Gold Mountain Fire', lat:38.05, lng:-107.72, acres:35601, contained:5, note:'5% contained. Grew to 35,601 acres. Containment dropped from 8%. ~1,000 personnel.'},
+  {name:'Ferris Fire', lat:37.60, lng:-108.55, acres:64369, contained:23, note:'Grew to 64,369 acres. 23% contained. San Juan NF. Among largest fires in US.'},
+  {name:'Aspen Acres Fire', lat:37.95, lng:-104.90, acres:98100, contained:25, note:'25% containment — doubled. 775 structures destroyed. 1,900+ personnel. Progress being made.'},
+  {name:'Willow Fire', lat:39.18, lng:-106.42, acres:5853, contained:33, note:'33% contained. Significant improvement. No structures lost. 760+ personnel.'},
+  {name:'Snyder Fire', lat:39.10, lng:-108.85, acres:30202, contained:98, note:'98% contained. All evacs lifted.'},
+];
+
+var threatColor = {critical:'#5A0000', high:'#E24B4A', mod:'#BA7517', low:'#3B6D11'};
+var threatLabel = {critical:'CRITICAL RISK', high:'HIGH RISK', mod:'MONITOR', low:'LOW RISK'};
+
+function initMap() {
+  var L = window.L;
+  if (!L) { document.getElementById('map-status').textContent = 'Map library unavailable'; return; }
+
+  var map = L.map('live-map', {center:[39.4,-106.2], zoom:7});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom:18,
+  }).addTo(map);
+
+  knownFires.forEach(function(f) {
+    var radiusM = Math.sqrt(f.acres * 4047) * 1.3;
+    if (f.acres < 200) radiusM = 4000;
+    var color = f.contained >= 90 ? '#888888' : f.contained >= 50 ? '#BA7517' : '#E24B4A';
+    if (f.contained === 0) color = '#5A0000';
+    L.circle([f.lat,f.lng],{
+      radius:radiusM, color:color, fillColor:color, fillOpacity:0.15,
+      weight:f.contained>=90?1.5:2.5,
+      dashArray:f.contained>=90?'6,4':null,
+    }).addTo(map).bindPopup('<b style="color:'+(f.contained===0?'#E24B4A':'#A32D2D')+';">'+f.name+'</b><br>'+f.acres.toLocaleString()+' acres &middot; '+f.contained+'% contained<br><span style="font-size:11px;color:#555;">'+f.note+'</span>');
+    var fc = f.contained<90?(f.contained===0?'#5A0000':'#E24B4A'):'#888';
+    var fi = L.divIcon({
+      html:'<div style="background:'+fc+';color:'+(f.contained===0?'#F3CE3C':'#fff')+';font-size:10px;font-weight:700;padding:3px 7px;border-radius:4px;white-space:nowrap;border:1px solid rgba(0,0,0,0.25);box-shadow:0 1px 4px rgba(0,0,0,0.3);">'+(f.contained<90?'&#128293; ':'')+f.name.replace(' Fire','')+' ('+f.contained+'%)</div>',
+      className:'',iconAnchor:[0,0],
+    });
+    L.marker([f.lat+0.10,f.lng],{icon:fi,interactive:false}).addTo(map);
+  });
+
+  awadayLocations.forEach(function(loc) {
+    var color = threatColor[loc.threat];
+    var borderColor = loc.threat==='critical'?'#F3CE3C':'#F3CE3C';
+    var icon = L.divIcon({
+      html:'<div style="width:20px;height:20px;border-radius:50%;background:'+color+';border:3px solid '+borderColor+';box-shadow:0 2px 6px rgba(0,0,0,0.5);">'+(loc.threat==='critical'?'<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:10px;color:#F3CE3C;font-weight:900;">!</div>':'')+'</div>',
+      className:'',iconSize:[20,20],iconAnchor:[10,10],
+    });
+    L.marker([loc.lat,loc.lng],{icon:icon,zIndexOffset:1000}).addTo(map).bindPopup(
+      '<div style="font-family:Arial,sans-serif;min-width:210px;">'+
+      '<b style="font-size:13px;color:#005C83;">'+loc.name+'</b><br>'+
+      '<span style="background:#005C83;color:#F3CE3C;font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;display:inline-block;margin:3px 0;">'+loc.brands.join(' &middot; ')+'</span><br>'+
+      '<span style="display:inline-block;margin:3px 0 4px;background:'+color+';color:'+(loc.threat==='critical'?'#F3CE3C':'#fff')+';font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">'+threatLabel[loc.threat]+'</span><br>'+
+      '<span style="font-size:11px;color:#444;">'+loc.fire.replace(/\|/g,'<br>')+'</span>'+
+      '</div>',{maxWidth:260}
+    );
+  });
+
+  var statusEl = document.getElementById('map-status');
+  statusEl.textContent = 'Loading live NASA fire hotspots\u2026';
+  fetch('https://firms.modaps.eosdis.nasa.gov/api/area/csv/VIIRS_SNPP_NRT/USA_contiguous_and_Hawaii/1')
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();})
+    .then(function(text){
+      var lines=text.trim().split('\n');
+      if(lines.length<2)throw new Error('empty');
+      var h=lines[0].split(',');
+      var li=h.indexOf('latitude'),gi=h.indexOf('longitude'),ci=h.indexOf('confidence'),di=h.indexOf('acq_date'),ti=h.indexOf('acq_time');
+      var count=0;
+      for(var i=1;i<lines.length;i++){
+        var c=lines[i].split(',');
+        var lat=parseFloat(c[li]),lng=parseFloat(c[gi]);
+        if(isNaN(lat)||isNaN(lng))continue;
+        if(lat<36.9||lat>41.5||lng<-109.2||lng>-101.9)continue;
+        var conf=c[ci]||'n',date=c[di]||'',time=c[ti]||'',hi=conf==='h';
+        count++;
+        L.circleMarker([lat,lng],{radius:hi?6:4,color:hi?'#8B0000':'#7A4500',fillColor:hi?'#E24B4A':'#F9972B',fillOpacity:0.85,weight:1})
+          .addTo(map).bindPopup('<b style="color:#A32D2D;">&#128308; NASA Satellite Hotspot</b><br>Confidence: <b>'+(hi?'High':conf==='n'?'Nominal':'Low')+'</b><br>Detected: '+date+' '+time+' UTC<br><span style="font-size:10px;color:#666;">VIIRS SNPP 375m</span>');
+      }
+      statusEl.textContent=count>0?'\u2713 '+count+' live hotspot'+(count!==1?'s':'')+' in Colorado/Routt Co.':'\u2713 No active hotspots right now';
+    })
+    .catch(function(){
+      statusEl.textContent='Live feed unavailable \u2014 showing known fire positions';
+      knownFires.filter(function(f){return f.contained<95;}).forEach(function(f){
+        L.circleMarker([f.lat,f.lng],{radius:9,color:f.contained===0?'#5A0000':'#8B0000',fillColor:f.contained===0?'#5A0000':'#E24B4A',fillOpacity:0.9,weight:2})
+          .addTo(map).bindPopup('<b style="color:#A32D2D;">&#9888; '+f.name+'</b><br>'+f.acres.toLocaleString()+' acres &middot; '+f.contained+'% contained');
+      });
+    });
+}
+
+(function(){
+  var s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+  s.onload=function(){initMap();};
+  s.onerror=function(){document.getElementById('map-status').textContent='Map library failed to load \u2014 check internet connection.';};
+  document.head.appendChild(s);
+})();
+</script>
+</body>
+</html>
