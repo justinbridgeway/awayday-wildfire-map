@@ -1,0 +1,37 @@
+name: Update Wildfire Map
+
+on:
+  # Run automatically every 6 hours
+  schedule:
+    - cron: '0 */6 * * *'
+
+  # Also allow manual trigger from GitHub website
+  workflow_dispatch:
+
+jobs:
+  update-map:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Step 3: Run the update script
+      - name: Run fire map updater
+        run: python update_fire_map.py
+
+      # Step 4: Commit and push changes if the file was modified
+      - name: Commit updated map
+        run: |
+          git config user.name "Awayday Fire Bot"
+          git config user.email "firebot@awayday.com"
+          git add index.html
+          git diff --staged --quiet || git commit -m "Auto-update: wildfire data $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git push
